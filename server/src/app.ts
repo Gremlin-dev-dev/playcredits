@@ -4,7 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 import { config } from './config';
 import { pool, withTx } from './db';
 import { HttpError } from './errors';
@@ -13,6 +13,7 @@ import { clearSession, originCheck, requireAuth, setSession } from './auth';
 import { applyEntry } from './wallet';
 import { betSchema, credentialsSchema, pageSchema, roundIdSchema } from './validation';
 import { cashOut, currentRound, placeBet } from './rounds';
+import { paymentsRouter, realMoneyGate } from './payments';
 
 const BCRYPT_COST = config.NODE_ENV === 'test' ? 4 : 12;
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', BCRYPT_COST);
@@ -27,7 +28,15 @@ export function createApp() {
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
-  app.use(express.json({ limit: '10kb' }));
+  app.use(
+    express.json({
+      limit: '10kb',
+      // Keep the exact bytes: Paystack's webhook signature is computed over the raw body.
+      verify: (req, _res, buf) => {
+        (req as any).rawBody = buf;
+      },
+    }),
+  );
   app.use(cookieParser());
   app.use(originCheck);
 
@@ -40,6 +49,8 @@ export function createApp() {
     message: { error: 'Too many attempts, try again later' },
   });
   app.use('/api', general);
+
+  app.use('/api/payments', realMoneyGate, paymentsRouter());
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/config', (_req, res) =>
@@ -110,17 +121,18 @@ export function createApp() {
     '/api/wallet',
     requireAuth,
     wrap(async (req, res) => {
-      const w = await pool.query('SELECT promo_balance FROM wallets WHERE user_id=$1', [req.userId]);
+      const w = await pool.query('SELECT promo_balance, real_balance FROM wallets WHERE user_id=$1', [req.userId]);
       if (!w.rows[0]) throw new HttpError(404, 'Wallet not found');
       const s = await pool.query(
         `SELECT COALESCE(SUM(-amount) FILTER (WHERE entry_type='bet'),0) AS wagered,
                 COALESCE(SUM(amount) FILTER (WHERE entry_type='payout'),0) AS winnings
-         FROM ledger_entries WHERE user_id=$1`,
+         FROM ledger_entries WHERE user_id=$1 AND balance_type='promo'`,
         [req.userId],
       );
       res.json({
         playCredits: Number(w.rows[0].promo_balance),
-        realMoney: 0,
+        realMoney: Number(w.rows[0].real_balance), // kobo (NGN x 100); 0 unless real money is enabled
+        realMoneyEnabled: config.REAL_MONEY_ENABLED,
         totalWagered: Number(s.rows[0].wagered),
         totalWinnings: Number(s.rows[0].winnings),
         notice: 'Play credits are virtual and have no cash value. They cannot be withdrawn.',
@@ -134,7 +146,7 @@ export function createApp() {
     wrap(async (req, res) => {
       const { limit, before } = pageSchema.parse(req.query);
       const q = await pool.query(
-        `SELECT id, entry_type, amount, balance_after, round_id, created_at FROM ledger_entries
+        `SELECT id, entry_type, amount, balance_after, balance_type, round_id, created_at FROM ledger_entries
          WHERE user_id=$1 AND ($2::bigint IS NULL OR id < $2) ORDER BY id DESC LIMIT $3`,
         [req.userId, before ?? null, limit],
       );
@@ -144,6 +156,7 @@ export function createApp() {
           type: r.entry_type,
           amount: Number(r.amount),
           balanceAfter: Number(r.balance_after),
+          balanceType: r.balance_type,
           roundId: r.round_id,
           createdAt: r.created_at,
         })),
@@ -153,14 +166,18 @@ export function createApp() {
 
   // ---- Aviator-style game ----
   const bet = betSchema(config.MIN_BET_CREDITS, config.MAX_BET_CREDITS);
+  const realBet = betSchema(config.REAL_MIN_BET_KOBO, config.REAL_MAX_BET_KOBO);
+  const walletChoice = z.object({ wallet: z.enum(['promo', 'real']).default('promo') });
 
   app.post(
     '/api/games/aviator/bet',
     requireAuth,
     wrap(async (req, res) => {
-      const { amount } = bet.parse(req.body);
+      const { wallet } = walletChoice.parse(req.body);
+      if (wallet === 'real' && !config.REAL_MONEY_ENABLED) throw new HttpError(403, 'Real-money play is not enabled');
+      const { amount } = (wallet === 'real' ? realBet : bet).parse(req.body);
       try {
-        const round = await withTx((c) => placeBet(c, req.userId!, amount));
+        const round = await withTx((c) => placeBet(c, req.userId!, amount, wallet));
         res.status(201).json(round);
       } catch (e: any) {
         // Unique index allows only one open round per user (covers concurrent requests).
