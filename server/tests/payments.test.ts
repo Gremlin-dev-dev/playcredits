@@ -75,6 +75,28 @@ describe.skipIf(!hasDb)('real money (Paystack)', () => {
     });
   });
 
+  describe('website config', () => {
+    it('tells the website whether real money is on, and the limits only when it is', async () => {
+      const off = await request(app).get('/api/config');
+      expect(off.body.realMoneyEnabled).toBe(false);
+      expect(off.body.real).toBeUndefined();
+      config.REAL_MONEY_ENABLED = true;
+      const on = await request(app).get('/api/config');
+      expect(on.body.realMoneyEnabled).toBe(true);
+      expect(on.body.real).toMatchObject({ currency: 'NGN', minDepositKobo: 10000, minWithdrawalKobo: 100000 });
+    });
+    it('marks each finished round with the wallet it was played on', async () => {
+      const { agent, id } = await signup();
+      config.REAL_MONEY_ENABLED = true;
+      await pool.query('UPDATE wallets SET real_balance = 100000 WHERE user_id=$1', [id]);
+      process.env.TEST_FORCE_SEED = HIGH_SEED;
+      const b = await agent.post('/api/games/aviator/bet').send({ amount: 20000, wallet: 'real' });
+      await agent.post(`/api/games/aviator/${b.body.id}/cashout`);
+      const h = await agent.get('/api/games/history');
+      expect(h.body[0]).toMatchObject({ bet: 20000, balanceType: 'real' });
+    });
+  });
+
   describe('deposits', () => {
     beforeEach(() => {
       config.REAL_MONEY_ENABLED = true;

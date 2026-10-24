@@ -26,12 +26,30 @@ export interface Round {
   crashPoint?: number;
   serverSeed?: string;
   payout: number;
+  wallet?: WalletKind;
   balance?: number;
 }
-export interface Wallet { playCredits: number; totalWagered: number; totalWinnings: number; notice: string }
-export interface LedgerEntry { id: number; type: string; amount: number; balanceAfter: number; createdAt: string }
-export interface HistoryRow { id: string; bet: number; status: string; payout: number; cashoutMultiplier: number | null; crashPoint: number; startedAt: string }
-export interface AppConfig { minBet: number; maxBet: number; welcomeBonus: number; notice: string }
+export type WalletKind = 'promo' | 'real';
+export interface Wallet {
+  playCredits: number;
+  realMoney: number; // kobo
+  realMoneyEnabled: boolean;
+  totalWagered: number;
+  totalWinnings: number;
+  notice: string;
+}
+export interface LedgerEntry { id: number; type: string; amount: number; balanceAfter: number; balanceType: WalletKind; createdAt: string }
+export interface Payment { id: string; kind: 'deposit' | 'withdrawal'; amount: number; status: string; createdAt: string }
+export type LimitKind = 'deposit' | 'loss';
+export type LimitPeriod = 'daily' | 'weekly' | 'monthly';
+export interface Limit { kind: LimitKind; period: LimitPeriod; amount: number | null; pending: { amount: number | null; effectiveAt: string } | null }
+export interface Protection {
+  limits: Limit[];
+  selfExclusion: { active: boolean; permanent: boolean; until: string | null };
+}
+export interface RealConfig { currency: string; minBetKobo: number; maxBetKobo: number; minDepositKobo: number; maxDepositKobo: number; minWithdrawalKobo: number }
+export interface HistoryRow { id: string; bet: number; status: string; payout: number; cashoutMultiplier: number | null; crashPoint: number; startedAt: string; balanceType: WalletKind }
+export interface AppConfig { minBet: number; maxBet: number; welcomeBonus: number; notice: string; realMoneyEnabled: boolean; real?: RealConfig }
 
 export const api = {
   config: () => call<AppConfig>('GET', '/config'),
@@ -43,7 +61,16 @@ export const api = {
   ledger: () => call<LedgerEntry[]>('GET', '/wallet/ledger?limit=30'),
   history: () => call<HistoryRow[]>('GET', '/games/history'),
   current: () => call<Round | null>('GET', '/games/aviator/current'),
-  bet: (amount: number) => call<Round>('POST', '/games/aviator/bet', { amount }),
+  bet: (amount: number, wallet: WalletKind = 'promo') => call<Round>('POST', '/games/aviator/bet', { amount, wallet }),
   cashout: (id: string) => call<Round>('POST', `/games/aviator/${id}/cashout`),
   round: (id: string) => call<Round>('GET', `/games/aviator/${id}`),
+  // Real money (only exists on the server when REAL_MONEY_ENABLED=true)
+  deposit: (amount: number) => call<{ reference: string; authorizationUrl: string }>('POST', '/payments/deposits', { amount }),
+  withdraw: (amount: number, bankCode: string, accountNumber: string) =>
+    call<{ id: string; status: string; amount: number; balance: number }>('POST', '/payments/withdrawals', { amount, bankCode, accountNumber }),
+  payments: () => call<Payment[]>('GET', '/payments'),
+  protection: () => call<Protection>('GET', '/protection'),
+  setLimit: (kind: LimitKind, period: LimitPeriod, amount: number | null) =>
+    call<{ applied: boolean } & Protection>('PUT', '/protection/limits', { kind, period, amount }),
+  selfExclude: (period: string) => call<{ permanent: boolean; until: string | null }>('POST', '/protection/self-exclusion', { period }),
 };

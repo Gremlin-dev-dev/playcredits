@@ -61,7 +61,21 @@ export function createApp() {
       minBet: config.MIN_BET_CREDITS,
       maxBet: config.MAX_BET_CREDITS,
       welcomeBonus: config.WELCOME_BONUS_CREDITS,
-      notice: 'Simulation only. Play credits are virtual, have no cash value and cannot be withdrawn.',
+      realMoneyEnabled: config.REAL_MONEY_ENABLED,
+      // Amounts are in kobo (NGN x 100). Only sent when real money is on.
+      real: config.REAL_MONEY_ENABLED
+        ? {
+            currency: 'NGN',
+            minBetKobo: config.REAL_MIN_BET_KOBO,
+            maxBetKobo: config.REAL_MAX_BET_KOBO,
+            minDepositKobo: config.MIN_DEPOSIT_KOBO,
+            maxDepositKobo: config.MAX_DEPOSIT_KOBO,
+            minWithdrawalKobo: config.MIN_WITHDRAWAL_KOBO,
+          }
+        : undefined,
+      notice: config.REAL_MONEY_ENABLED
+        ? 'Adults (18+) only. Gambling involves risk: never bet more than you can afford to lose.'
+        : 'Simulation only. Play credits are virtual, have no cash value and cannot be withdrawn.',
     }),
   );
 
@@ -236,7 +250,7 @@ export function createApp() {
     requireAuth,
     wrap(async (req, res) => {
       const q = await pool.query(
-        `SELECT id, bet, status, payout, cashout_multiplier, crash_point, started_at FROM game_rounds
+        `SELECT id, bet, status, payout, cashout_multiplier, crash_point, started_at, balance_type FROM game_rounds
          WHERE user_id=$1 AND status<>'open' ORDER BY started_at DESC LIMIT 50`,
         [req.userId],
       );
@@ -244,7 +258,7 @@ export function createApp() {
         q.rows.map((r) => ({
           id: r.id, bet: Number(r.bet), status: r.status, payout: Number(r.payout),
           cashoutMultiplier: r.cashout_multiplier != null ? Number(r.cashout_multiplier) : null,
-          crashPoint: Number(r.crash_point), startedAt: r.started_at,
+          crashPoint: Number(r.crash_point), startedAt: r.started_at, balanceType: r.balance_type,
         })),
       );
     }),
