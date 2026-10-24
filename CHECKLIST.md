@@ -16,6 +16,14 @@
 - [ ] **Nothing has been installed, built or run.** The environment this was generated in had no network access, so `npm install`, `npm run build`, `npm run migrate` and `npm test` have **not** been executed. Expect that you may need to fix small type or dependency errors on first run. Please run them and report any failures.
 - [ ] Rate-limit behaviour and the React UI have no automated tests (UI is untested beyond reading the code).
 
+## Real-money groundwork (behind REAL_MONEY_ENABLED, default off)
+- [x] Migration 003: real balance allowed (>= 0), `payments` table, ledger types deposit/withdrawal/withdrawal_reversal, `kyc_status`
+- [x] Paystack deposit start + signed webhook (idempotent, amount/currency checked)
+- [x] Withdrawal request (KYC-gated, balance held, queued for review)
+- [x] Bets/payouts can use the real wallet with separate limits
+- [ ] Withdrawal approval + Paystack Transfers payout, KYC flow, deposit/loss limits, self-exclusion, admin panel, RNG certification
+- [ ] Live Paystack calls are mocked in tests; test against Paystack's sandbox before launch
+
 ## Intentionally not included
 - No withdrawals, deposits, withdrawal fees or payment-provider integration. The spec's "withdrawal charge", "fee calculation" and "payment provider abstraction" items were removed by agreement because play credits have no cash value. If a licensed real-money product is built later, that is a separate design (licence, KYC, fees deducted from payouts, verified provider webhooks).
 - No email verification, password reset, 2FA, admin panel, or responsible-gaming limits.

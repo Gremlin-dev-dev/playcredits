@@ -175,10 +175,10 @@ describe.skipIf(!hasDb)('API integration', () => {
       await expect(pool.query('UPDATE ledger_entries SET amount = 1')).rejects.toThrow(/append-only/);
       await expect(pool.query('DELETE FROM ledger_entries')).rejects.toThrow(/append-only/);
     });
-    it('the database refuses a negative balance or a real-money balance', async () => {
+    it('the database refuses a negative promo or real balance', async () => {
       await signup();
       await expect(pool.query('UPDATE wallets SET promo_balance = -1')).rejects.toThrow();
-      await expect(pool.query('UPDATE wallets SET real_balance = 100')).rejects.toThrow();
+      await expect(pool.query('UPDATE wallets SET real_balance = -1')).rejects.toThrow();
     });
   });
 });

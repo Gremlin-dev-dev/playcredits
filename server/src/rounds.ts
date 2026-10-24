@@ -1,7 +1,7 @@
 import { PoolClient } from 'pg';
 import { randomUUID } from 'crypto';
 import { HttpError } from './errors';
-import { applyEntry } from './wallet';
+import { applyEntry, BalanceType } from './wallet';
 import { createSeed, crashPointFromSeed, crashTimeMs, multiplierAt, payoutFor, seedHash } from './game';
 
 const ELAPSED = `EXTRACT(EPOCH FROM (clock_timestamp() - started_at)) * 1000 AS elapsed_ms`;
@@ -16,6 +16,7 @@ export interface RoundView {
   crashPoint?: number; // revealed only after settlement
   serverSeed?: string; // revealed only after settlement
   payout: number;
+  wallet?: BalanceType; // which wallet the bet came from
   balance?: number;
 }
 
@@ -31,6 +32,7 @@ function view(r: any, balance?: number): RoundView {
     crashPoint: settled ? Number(r.crash_point) : undefined,
     serverSeed: settled ? r.server_seed : undefined,
     payout: Number(r.payout),
+    wallet: r.balance_type,
     balance,
   };
 }
@@ -58,17 +60,22 @@ async function lockOpenRound(c: PoolClient, userId: string) {
   return r;
 }
 
-export async function placeBet(c: PoolClient, userId: string, amount: number): Promise<RoundView> {
+export async function placeBet(
+  c: PoolClient,
+  userId: string,
+  amount: number,
+  balanceType: BalanceType = 'promo',
+): Promise<RoundView> {
   // Lock order is always: round row, then wallet row (same as cashOut) to avoid deadlocks.
   if (await lockOpenRound(c, userId)) throw new HttpError(409, 'A round is already in progress');
   const seed = createSeed();
   const id = randomUUID();
   await c.query(
-    `INSERT INTO game_rounds (id, user_id, bet, status, server_seed, seed_hash, crash_point)
-     VALUES ($1,$2,$3,'open',$4,$5,$6)`,
-    [id, userId, amount, seed, seedHash(seed), crashPointFromSeed(seed)],
+    `INSERT INTO game_rounds (id, user_id, bet, status, server_seed, seed_hash, crash_point, balance_type)
+     VALUES ($1,$2,$3,'open',$4,$5,$6,$7)`,
+    [id, userId, amount, seed, seedHash(seed), crashPointFromSeed(seed), balanceType],
   );
-  const balance = await applyEntry(c, { userId, type: 'bet', amount: -amount, roundId: id });
+  const balance = await applyEntry(c, { userId, type: 'bet', amount: -amount, roundId: id, balanceType });
   const r = (await c.query(`SELECT *, ${ELAPSED} FROM game_rounds WHERE id=$1`, [id])).rows[0];
   return view(r, balance);
 }
@@ -99,6 +106,6 @@ export async function cashOut(c: PoolClient, userId: string, roundId: string): P
      WHERE id=$1 RETURNING *`,
     [r.id, mult, payout],
   );
-  const balance = await applyEntry(c, { userId, type: 'payout', amount: payout, roundId: r.id });
+  const balance = await applyEntry(c, { userId, type: 'payout', amount: payout, roundId: r.id, balanceType: r.balance_type });
   return view(u.rows[0], balance);
 }
