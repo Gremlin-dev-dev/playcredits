@@ -1,0 +1,12 @@
+{
+  "name": "playcredits",
+  "private": true,
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev": "concurrently -n server,web -c green,cyan \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w server && npm run build -w web",
+    "migrate": "npm run migrate -w server",
+    "test": "npm run test -w server"
+  },
+  "devDependencies": { "concurrently": "^8.2.2" }
+}
