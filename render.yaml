@@ -1,0 +1,33 @@
+# Render Blueprint: describes the API service. Create it with: Render dashboard > New > Blueprint.
+services:
+  - type: web
+    name: playcredits-api
+    runtime: node
+    plan: free
+    region: frankfurt # pick the region closest to your Supabase project
+    buildCommand: npm install --include=dev && npm run build -w server
+    # Applies any new database migrations, then starts the API.
+    startCommand: npm run migrate:prod -w server && npm start -w server
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_SSL
+        value: "true"
+      # The API sits behind Vercel and Render, so two proxies sit in front of it.
+      - key: TRUST_PROXY
+        value: "2"
+      # Keep false until your gaming licence is granted.
+      - key: REAL_MONEY_ENABLED
+        value: "false"
+      - key: JWT_SECRET
+        generateValue: true
+      # Your Supabase "Session pooler" connection string (with your database password filled in).
+      - key: DATABASE_URL
+        sync: false
+      # Your website's exact address, e.g. https://playcredits.vercel.app (no trailing slash).
+      - key: CLIENT_ORIGIN
+        sync: false
