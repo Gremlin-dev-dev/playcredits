@@ -29,3 +29,19 @@ button.cash { width:100%; background:#d29922; color:#1f1500; padding:14px; }
 table { width:100%; border-collapse:collapse; font-size:14px; } td { padding:5px 4px; border-bottom:1px solid var(--line); } td:not(:first-child) { text-align:right; }
 .pos { color:var(--acc); } .neg { color:var(--bad); }
 .center { text-align:center; margin-top:40px; }
+
+/* Real-money screens */
+.tabs { display:flex; gap:6px; margin:4px 0 8px; }
+button.tab { background:var(--bg); color:var(--muted); border:1px solid var(--line); flex:1; }
+button.tab.on { background:var(--acc); color:#04260f; border-color:var(--acc); }
+button.secondary { background:none; color:var(--fg); border:1px solid var(--line); }
+button.danger { background:var(--bad); color:#fff; }
+select { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:16px; flex:1; }
+input[type=text] { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:16px; width:100%; }
+.stack { display:flex; flex-direction:column; gap:8px; }
+.field { display:flex; flex-direction:column; gap:4px; font-size:14px; color:var(--muted); }
+.okmsg { color:var(--acc); margin:0; }
+.small-balance { font-size:22px; }
+.limit { margin:8px 0 14px; } .limit-head { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+.full { grid-column: 1 / -1; margin:0; }
+h3 { margin:16px 0 6px; font-size:16px; }
