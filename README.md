@@ -81,7 +81,8 @@ Set `REAL_MONEY_ENABLED=true` only when you are licensed to operate. Until then 
 - Amounts are whole **kobo** (NGN x 100). Wallets keep a separate `real_balance`; each game round remembers which wallet it was bet from.
 - **Deposits:** `POST /api/payments/deposits {amount}` creates a pending payment and returns a Paystack checkout URL. Money is credited **only** when Paystack calls `POST /api/payments/paystack/webhook` with a valid HMAC-SHA512 signature, the amount and currency match what we stored, and the payment is still pending (so retries never double-credit). In the Paystack dashboard set the webhook URL to `https://YOUR-API-DOMAIN/api/payments/paystack/webhook`.
 - **Withdrawals:** `POST /api/payments/withdrawals {amount, bankCode, accountNumber}` needs `users.kyc_status = 'verified'`, takes the money off the balance immediately and queues the request as `pending_review`. Paying out (Paystack Transfers) and the admin approval screen are not built yet.
-- Not built yet: identity verification flow, deposit/loss limits, self-exclusion, admin panel, payouts.
+- **Player protection** (`/api/protection`, same switch): deposit and loss limits (daily / weekly / monthly, rolling windows), and self-exclusion (24h, 7d, 30d, 90d, 180d, permanent). Lowering a limit is immediate; raising or removing one takes effect after 24h. Self-exclusion can be extended but never shortened by the player; while active it blocks real deposits and real bets (withdrawals are still allowed).
+- Not built yet: identity verification flow, admin panel, payouts, reality checks / session time limits.
 
 ## Deployment guidance
 1. Provision PostgreSQL; set env vars on the host (never commit `.env`).

@@ -2,6 +2,7 @@ import { PoolClient } from 'pg';
 import { randomUUID } from 'crypto';
 import { HttpError } from './errors';
 import { applyEntry, BalanceType } from './wallet';
+import { assertLossAllowed, assertNotExcluded } from './protection';
 import { createSeed, crashPointFromSeed, crashTimeMs, multiplierAt, payoutFor, seedHash } from './game';
 
 const ELAPSED = `EXTRACT(EPOCH FROM (clock_timestamp() - started_at)) * 1000 AS elapsed_ms`;
@@ -68,6 +69,10 @@ export async function placeBet(
 ): Promise<RoundView> {
   // Lock order is always: round row, then wallet row (same as cashOut) to avoid deadlocks.
   if (await lockOpenRound(c, userId)) throw new HttpError(409, 'A round is already in progress');
+  if (balanceType === 'real') {
+    await assertNotExcluded(c, userId);
+    await assertLossAllowed(c, userId, amount);
+  }
   const seed = createSeed();
   const id = randomUUID();
   await c.query(
