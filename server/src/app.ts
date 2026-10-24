@@ -14,6 +14,7 @@ import { applyEntry } from './wallet';
 import { betSchema, credentialsSchema, pageSchema, roundIdSchema } from './validation';
 import { cashOut, currentRound, placeBet } from './rounds';
 import { paymentsRouter, realMoneyGate } from './payments';
+import { protectionRouter } from './protection';
 
 const BCRYPT_COST = config.NODE_ENV === 'test' ? 4 : 12;
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', BCRYPT_COST);
@@ -51,6 +52,7 @@ export function createApp() {
   app.use('/api', general);
 
   app.use('/api/payments', realMoneyGate, paymentsRouter());
+  app.use('/api/protection', realMoneyGate, protectionRouter());
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/config', (_req, res) =>

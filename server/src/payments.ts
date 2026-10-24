@@ -8,6 +8,7 @@ import { HttpError } from './errors';
 import { log } from './logger';
 import { requireAuth } from './auth';
 import { applyEntry } from './wallet';
+import { assertDepositAllowed, assertNotExcluded } from './protection';
 
 /** Real-money routes do not exist (404) unless REAL_MONEY_ENABLED=true. Read at request time. */
 export function realMoneyGate(_req: Request, _res: Response, next: NextFunction) {
@@ -32,6 +33,8 @@ export function verifyPaystackSignature(raw: Buffer, signature: string | undefin
 export async function startDeposit(userId: string, email: string, amount: number) {
   const key = config.PAYSTACK_SECRET_KEY;
   if (!key) throw new HttpError(503, 'Payments are not configured');
+  await assertNotExcluded(pool, userId);
+  await assertDepositAllowed(pool, userId, amount);
   const reference = `dep_${randomUUID()}`;
   await pool.query(
     `INSERT INTO payments (user_id, kind, amount, status, reference) VALUES ($1,'deposit',$2,'pending',$3)`,

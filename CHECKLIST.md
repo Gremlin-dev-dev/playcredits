@@ -21,7 +21,8 @@
 - [x] Paystack deposit start + signed webhook (idempotent, amount/currency checked)
 - [x] Withdrawal request (KYC-gated, balance held, queued for review)
 - [x] Bets/payouts can use the real wallet with separate limits
-- [ ] Withdrawal approval + Paystack Transfers payout, KYC flow, deposit/loss limits, self-exclusion, admin panel, RNG certification
+- [x] Player protection: deposit and loss limits (24h cooling-off on increases), self-exclusion (migration 004)
+- [ ] Withdrawal approval + Paystack Transfers payout, KYC flow, admin panel, session reminders, RNG certification
 - [ ] Live Paystack calls are mocked in tests; test against Paystack's sandbox before launch
 
 ## Intentionally not included
